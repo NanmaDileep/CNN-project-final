@@ -1,0 +1,95 @@
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling2D
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
+
+# 🔹 Paths
+train_dir = "dataset/train"
+test_dir = "dataset/test"
+
+# 🔹 Image size (IMPORTANT FIX)
+IMG_SIZE = 96
+
+# 🔹 Data Augmentation (BOOST ACCURACY)
+train_gen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=15,
+    zoom_range=0.1,
+    horizontal_flip=True
+)
+
+test_gen = ImageDataGenerator(rescale=1./255)
+
+train_data = train_gen.flow_from_directory(
+    train_dir,
+    target_size=(IMG_SIZE, IMG_SIZE),
+    color_mode='rgb',
+    batch_size=32,
+    class_mode='categorical'
+)
+
+val_data = test_gen.flow_from_directory(
+    test_dir,
+    target_size=(IMG_SIZE, IMG_SIZE),
+    color_mode='rgb',
+    batch_size=32,
+    class_mode='categorical'
+)
+
+# 🔹 Load pretrained model
+base_model = MobileNetV2(
+    weights='imagenet',
+    include_top=False,
+    input_shape=(IMG_SIZE, IMG_SIZE, 3)
+)
+
+# 🔹 Freeze base layers
+for layer in base_model.layers:
+    layer.trainable = False
+
+# 🔹 Better classifier (IMPORTANT)
+x = GlobalAveragePooling2D()(base_model.output)
+x = Dense(256, activation='relu')(x)
+x = Dropout(0.5)(x)
+output = Dense(7, activation='softmax')(x)
+
+model = Model(inputs=base_model.input, outputs=output)
+
+# 🔹 Compile (Stage 1)
+model.compile(
+    optimizer=Adam(learning_rate=0.001),
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+print("🔹 Training (Frozen base)...")
+model.fit(
+    train_data,
+    validation_data=val_data,
+    epochs=10
+)
+
+# 🔹 Fine-tuning (IMPORTANT BOOST 🚀)
+for layer in base_model.layers[-50:]:
+    layer.trainable = True
+
+model.compile(
+    optimizer=Adam(learning_rate=0.0001),  # lower LR
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+print("🔹 Fine-tuning...")
+model.fit(
+    train_data,
+    validation_data=val_data,
+    epochs=10
+)
+
+# 🔹 Save model
+model.save("model/emotion_model.h5")
+
+print("✅ Training Complete!")

@@ -1,0 +1,79 @@
+import cv2
+import numpy as np
+from tensorflow.keras.models import load_model
+
+# 🔹 Load model
+model = load_model("model/emotion_model.h5")
+
+# 🔹 Emotion labels
+emotion_labels = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
+
+IMG_SIZE = 96
+
+# 🔹 Load image
+img = cv2.imread("test.jpg")
+
+# 🔴 Check if image loaded
+if img is None:
+    print("❌ Image not found. Check file path or name.")
+    exit()
+
+# 🔹 Load face detector
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+)
+
+# 🔹 Convert to grayscale for detection
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# 🔹 Detect faces
+faces = face_cascade.detectMultiScale(gray, 1.2, 6)
+
+print("Faces detected:", len(faces))
+
+# 🔴 If no face detected → fallback
+if len(faces) == 0:
+    print("⚠️ No face detected, using full image")
+
+    face = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
+
+    # ✅ Convert to grayscale → then back to RGB
+    face = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
+    face = cv2.cvtColor(face, cv2.COLOR_GRAY2RGB)
+
+    face = face / 255.0
+    face = np.reshape(face, (1, IMG_SIZE, IMG_SIZE, 3))
+
+    prediction = model.predict(face)
+    confidence = np.max(prediction)
+    emotion = emotion_labels[np.argmax(prediction)]
+
+    print(f"Predicted Emotion: {emotion} ({confidence*100:.2f}%)")
+
+# ✅ If face detected → use ONLY largest face
+else:
+    (x, y, w, h) = max(faces, key=lambda rect: rect[2] * rect[3])
+
+    face = img[y:y+h, x:x+w]
+
+    # ✅ Convert to grayscale → then back to RGB
+    face = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
+    face = cv2.cvtColor(face, cv2.COLOR_GRAY2RGB)
+
+    face = cv2.resize(face, (IMG_SIZE, IMG_SIZE))
+    face = face / 255.0
+    face = np.reshape(face, (1, IMG_SIZE, IMG_SIZE, 3))
+
+    prediction = model.predict(face)
+    confidence = np.max(prediction)
+    emotion = emotion_labels[np.argmax(prediction)]
+
+    print(f"Predicted Emotion: {emotion} ({confidence*100:.2f}%)")
+
+    # 🔹 Draw rectangle
+    cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)
+
+    # 🔹 Show image
+    cv2.imshow("Detected Face", img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()

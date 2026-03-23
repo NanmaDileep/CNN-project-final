@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <title>EMOTION DETECTION</title>
+
+    <!-- 🔥 Link external CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>🎭 EMOTION  DETECTION </h1>
+
+    <!-- Upload Section -->
+    <div class="section">
+        <h2>📁 Upload Image</h2>
+
+        <form action="/upload" method="POST" enctype="multipart/form-data">
+            <input type="file" name="image" required>
+            <br><br>
+            <button type="submit">Upload & Predict</button>
+        </form>
+
+        {% if uploaded_image %}
+            <img src="{{ uploaded_image }}" width="250">
+        {% endif %}
+
+        {% if emotion %}
+            <div class="result">
+                Emotion: {{ emotion }} ({{ confidence }}%)
+            </div>
+        {% endif %}
+    </div>
+
+    <hr>
+
+    <!-- Webcam Section -->
+    <div class="section">
+        <h2>🎥 Webcam Detection</h2>
+
+        <video id="video" autoplay></video>
+        <br><br>
+
+        <button onclick="startCamera()">Start Camera</button>
+        <button onclick="capture()">Capture</button>
+        <button onclick="stopCamera()">Stop Camera</button>
+
+        <div id="result" class="result"></div>
+    </div>
+
+</div>
+
+<script>
+let video = document.getElementById("video");
+let stream;
+
+function startCamera() {
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(s => {
+            stream = s;
+            video.srcObject = stream;
+        });
+}
+
+function stopCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+    }
+}
+
+function capture() {
+    let canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    let ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+
+    let image = canvas.toDataURL("image/jpeg");
+
+    fetch("/predict", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ image: image })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("result").innerText =
+            "Emotion: " + data.emotion + " (" + data.confidence + "%)";
+    });
+}
+</script>
+
+</body>
+</html>
